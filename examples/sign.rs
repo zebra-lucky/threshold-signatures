@@ -1,8 +1,8 @@
 use anyhow::{anyhow,bail};
 use crossbeam_channel::{Receiver, Sender};
 use curv::BigInt;
-use curv::elliptic::curves::traits::{ECScalar};
-use sha2::{Sha256, Digest};
+use curv::elliptic::curves::traits::{ECScalar, ECPoint};
+use hex;
 use ecdsa_mpc::ecdsa::{MessageHashType};
 use ecdsa_mpc::ecdsa::keygen::{MultiPartyInfo};
 use ecdsa_mpc::ecdsa::signature::{Phase1, SigningTraits, SignedMessage};
@@ -10,8 +10,10 @@ use ecdsa_mpc::ecdsa::messages::signing::{InMsg, OutMsg};
 use ecdsa_mpc::protocol::{PartyIndex, InputMessage, Address};
 use ecdsa_mpc::state_machine::sync_channels::StateMachine;
 use rand::seq::SliceRandom;
+use sha2::{Sha256, Digest};
 use std::{env, fs, thread};
 use std::thread::JoinHandle;
+use std::convert::TryFrom;
 
 struct Node {
     party: PartyIndex,
@@ -47,6 +49,42 @@ fn main() -> anyhow::Result<()> {
     )
 }
 
+fn encode_der(sig: &SignedMessage) -> Vec<u8> {
+    let mut der = Vec::<u8>::new();
+    let r = hex::decode(sig.r.get_element().to_string()).unwrap();
+    let s = hex::decode(sig.s.get_element().to_string()).unwrap();
+    let mut r_len = u8::try_from(r.len()).ok().unwrap();
+    let mut s_len = u8::try_from(s.len()).ok().unwrap();
+    let mut data_len: u8 = 0;
+    let mut pad_r = false;
+    let mut pad_s = false;
+    if r[0] > 0x7f {
+        r_len += 1;
+        pad_r = true;
+    }
+    data_len += r_len + 2;
+    if s[0] > 0x7f {
+        s_len += 1;
+        pad_s = true;
+    }
+    data_len += s_len + 2;
+    der.push(0x30);
+    der.push(data_len);
+    der.push(0x02);
+    der.push(r_len);
+    if pad_r {
+        der.push(0x00);
+    }
+    der.extend(r);
+    der.push(0x02);
+    der.push(s_len);
+    if pad_s {
+        der.push(0x00);
+    }
+    der.extend(s);
+    der
+}
+
 fn sign_helper(
     min_signers: usize,
     share_count: usize,
@@ -71,6 +109,7 @@ fn sign_helper(
     let mut nodes = Vec::new();
     let mut node_results = Vec::new();
     let mut pubkeys = vec![];
+    let mut signatures = vec![];
 
     for party in parties_usize {
         let f_path = format!("{}.{}.json", &filename_prefix, &party);
@@ -176,13 +215,14 @@ fn sign_helper(
         });
         Err(anyhow!("Some state machines returned error"))
     } else {
-        for (index, result) in results.into_iter() {
+        for (_index, result) in results.into_iter() {
             // safe to unwrap because results with errors cause the early exit
             let signed_msg = result.unwrap().unwrap();
-            let sig_json = serde_json::to_string_pretty(&signed_msg)?;
-            println!("Signed message from party {}: {}", index, sig_json);
+            signatures.push(signed_msg);
         }
-        let pubkey = serde_json::to_string_pretty(&pubkeys[0])?;
+        let sig_hex_der = hex::encode(encode_der(&signatures[0]));
+        println!("Signature (DER encoded): {}", sig_hex_der);
+        let pubkey = pubkeys[0].get_element().to_string();
         println!("Pubkey {}", pubkey);
         Ok(())
     };
