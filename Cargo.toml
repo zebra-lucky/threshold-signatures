@@ -25,6 +25,7 @@ log = "0.4.8"
 env_logger = "0.7.1"
 sha2 = "0.8.0"
 sodiumoxide = "0.2.5"
+secp256k1 = "0.15.5"
 curv = { package="curv-kzen" , version="0.2.8", features = ["ec_secp256k1", "ecc"] }
 # the following crate should be pulled from the fork where its dependency on the `curv' library is upgraded
 paillier = { git = "https://github.com/RustMania/rust-paillier" }
