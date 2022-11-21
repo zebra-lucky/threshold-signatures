@@ -70,11 +70,13 @@ fn sign_helper(
 
     let mut nodes = Vec::new();
     let mut node_results = Vec::new();
+    let mut pubkeys = vec![];
 
     for party in parties_usize {
         let f_path = format!("{}.{}.json", &filename_prefix, &party);
         let f_content = fs::read_to_string(&f_path)?;
         let mp_info: MultiPartyInfo = serde_json::from_str(&f_content)?;
+        pubkeys.push(mp_info.public_key.clone());
         log::info!("starting party {}", party);
         let parties = parties.clone();
         let (ingress, rx) = crossbeam_channel::unbounded();
@@ -180,6 +182,8 @@ fn sign_helper(
             let sig_json = serde_json::to_string_pretty(&signed_msg)?;
             println!("Signed message from party {}: {}", index, sig_json);
         }
+        let pubkey = serde_json::to_string_pretty(&pubkeys[0])?;
+        println!("Pubkey {}", pubkey);
         Ok(())
     };
 }
