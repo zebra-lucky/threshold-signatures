@@ -7,6 +7,7 @@ RUST_LOG=info cargo run --example keygen 2 3 2of3 --use-range-proofs
 ```
 
 Sign "Some message" and get output as "r", "s" signature parts
+plus "x", "y" pubkey parts
 
 ```
 RUST_LOG=info cargo run --example sign 2 3 2of3 "Some message"
@@ -31,6 +32,7 @@ RUST_LOG=info cargo run --example keygen 3 5 3of5 --use-range-proofs
 ```
 
 Sign "Some message" and get output as "r", "s" signature parts
+plus "x", "y" pubkey parts
 
 ```
 RUST_LOG=info cargo run --example sign 3 5 3of5 "Some message"
