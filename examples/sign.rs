@@ -71,11 +71,11 @@ fn sign_helper(
     let mut nodes = Vec::new();
     let mut node_results = Vec::new();
 
-    for (i, party) in parties_usize.iter().enumerate() {
+    for party in parties_usize {
         let f_path = format!("{}.{}.json", &filename_prefix, &party);
         let f_content = fs::read_to_string(&f_path)?;
         let mp_info: MultiPartyInfo = serde_json::from_str(&f_content)?;
-        log::info!("starting party {}", i);
+        log::info!("starting party {}", party);
         let parties = parties.clone();
         let (ingress, rx) = crossbeam_channel::unbounded();
         let (tx, egress) = crossbeam_channel::unbounded();
@@ -95,12 +95,12 @@ fn sign_helper(
             }
         });
         nodes.push(Node {
-            party: PartyIndex::from(i),
+            party: PartyIndex::from(*party),
             egress,
             ingress,
         });
         node_results.push(NodeResult {
-            index: i,
+            index: *party,
             join_handle,
         })
     }
@@ -167,7 +167,7 @@ fn sign_helper(
     {
         results.iter().for_each(|r| match r {
             (_, Ok(result)) => match result {
-                Ok(final_state) => log::error!("{:?}", final_state),
+                Ok(signed_msg) => log::error!("{:?}", signed_msg),
                 Err(e) => log::error!("{:?}", e),
             },
             (_, Err(e)) => log::error!("{:?}", e),
@@ -176,13 +176,9 @@ fn sign_helper(
     } else {
         for (index, result) in results.into_iter() {
             // safe to unwrap because results with errors cause the early exit
-            let final_state = result.unwrap().unwrap();
-            dbg!(final_state);
-            //let path = format!("{}.{}.json", filename_prefix, index);
-            //let mut file = File::create(&path)?;
-            //file.write_all(
-            //    serde_json::to_string_pretty(&final_state.multiparty_shared_info)?.as_bytes(),
-            //)?;
+            let signed_msg = result.unwrap().unwrap();
+            let sig_json = serde_json::to_string_pretty(&signed_msg)?;
+            println!("Signed message from party {}: {}", index, sig_json);
         }
         Ok(())
     };
