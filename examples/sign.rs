@@ -3,6 +3,7 @@ use crossbeam_channel::{Receiver, Sender};
 use curv::BigInt;
 use curv::elliptic::curves::traits::{ECScalar, ECPoint};
 use hex;
+use ecdsa_mpc;
 use ecdsa_mpc::ecdsa::{MessageHashType};
 use ecdsa_mpc::ecdsa::keygen::{MultiPartyInfo};
 use ecdsa_mpc::ecdsa::signature::{Phase1, SigningTraits, SignedMessage};
@@ -10,7 +11,8 @@ use ecdsa_mpc::ecdsa::messages::signing::{InMsg, OutMsg};
 use ecdsa_mpc::protocol::{PartyIndex, InputMessage, Address};
 use ecdsa_mpc::state_machine::sync_channels::StateMachine;
 use rand::seq::SliceRandom;
-use sha2::{Sha256, Digest};
+use secp256k1::{Secp256k1, Message, Signature, PublicKey};
+//use sha2::{Sha256, Digest};
 use std::{env, fs, thread};
 use std::thread::JoinHandle;
 use std::convert::TryFrom;
@@ -37,7 +39,7 @@ fn main() -> anyhow::Result<()> {
 
     if args.len() < 5 {
         println!("usage: {} min_number_of_signers share_count \
-                  output_file_name_prefix the_message", args[0]);
+                  output_file_name_prefix hex_msg_hash", args[0]);
         bail!("too few arguments")
     }
 
@@ -89,14 +91,16 @@ fn sign_helper(
     min_signers: usize,
     share_count: usize,
     filename_prefix: &String,
-    the_message: &String,
+    hex_msg_hash: &String,
 ) -> anyhow::Result<()> {
     // Make msg_hash from the_message
-    let mut hasher = Sha256::new();
-    hasher.input(the_message);
+    //let mut hasher = Sha256::new();
+    //hasher.input(the_message);
+    //let msg_hash: MessageHashType = ECScalar::from(
+    //    &BigInt::from(hasher.result().as_slice())
+    //);
     let msg_hash: MessageHashType = ECScalar::from(
-        &BigInt::from(hasher.result().as_slice())
-    );
+        &BigInt::from(hex::decode(hex_msg_hash).unwrap().as_slice()));
 
     // use random min_isngers parties from total share_count
     let mut parties_usize = (0..share_count).collect::<Vec<_>>();
@@ -122,7 +126,7 @@ fn sign_helper(
         let (tx, egress) = crossbeam_channel::unbounded();
         let join_handle = thread::spawn(move || {
             let start_state = Box::new(Phase1::new(
-                msg_hash,
+                msg_hash.clone(),
                 mp_info,
                 &parties,
                 None,
@@ -220,10 +224,33 @@ fn sign_helper(
             let signed_msg = result.unwrap().unwrap();
             signatures.push(signed_msg);
         }
-        let sig_hex_der = hex::encode(encode_der(&signatures[0]));
-        println!("Signature (DER encoded): {}", sig_hex_der);
-        let pubkey = pubkeys[0].get_element().to_string();
-        println!("Pubkey {}", pubkey);
+        let signature = &signatures[0];
+        let sig_ecdsa_mpc = ecdsa_mpc::Signature{
+            r: signature.r.clone(),
+            s: signature.s.clone(),
+        };
+        let sig_der = encode_der(&signature);
+        let sig_hex_der = hex::encode(sig_der);
+        let pubkey = pubkeys[0].get_element();
+        if !sig_ecdsa_mpc.verify(&pubkeys[0], &msg_hash) {
+            println!("ECDSA MPC Signature verification failed");
+        }
+        let pubkey_hex = pubkey.to_string();
+        //println!("Pubkey: {}" ,pubkey_hex);
+
+        let secp = Secp256k1::new();
+        let msg_hash_hex = &msg_hash.get_element().to_string();
+        let msg = Message::from_slice(&hex::decode(msg_hash_hex).unwrap())
+            .unwrap();
+        let mut sig = Signature::from_der(&hex::decode(sig_hex_der).unwrap())
+            .unwrap();
+        sig.normalize_s();
+        println!("sig:\n{}", sig);
+        let pubkey = PublicKey::from_slice(&hex::decode(pubkey_hex).unwrap())
+            .unwrap();
+        if !secp.verify(&msg, &sig, &pubkey).is_ok() {
+            println!("Signature verification failed");
+        }
         Ok(())
     };
 }

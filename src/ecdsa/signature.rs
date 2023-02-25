@@ -425,6 +425,7 @@ pub struct SignedMessage {
 /// vector of signing errors
 #[derive(Debug)]
 pub struct ErrorState {
+    #[allow(dead_code)]
     errors: Vec<SigningError>,
 }
 

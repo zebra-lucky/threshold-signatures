@@ -1052,6 +1052,7 @@ pub struct FinalState {
 /// Container of `KeygenError` type
 #[derive(Debug)]
 pub struct ErrorState {
+    #[allow(dead_code)]
     errors: Vec<KeygenError>,
 }
 

@@ -441,6 +441,7 @@ pub mod new_member {
     /// * verifies that all public keys are same
     #[derive(Clone, Debug)]
     pub struct Phase1 {
+        #[allow(dead_code)]
         old_params: Parameters,
         new_params: Parameters,
         old_committee: BTreeSet<PartyIndex>,
