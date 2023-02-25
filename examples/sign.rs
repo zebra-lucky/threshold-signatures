@@ -236,7 +236,7 @@ fn sign_helper(
             println!("ECDSA MPC Signature verification failed");
         }
         let pubkey_hex = pubkey.to_string();
-        //println!("Pubkey: {}" ,pubkey_hex);
+        //println!("Pubkey: {}", pubkey_hex);
 
         let secp = Secp256k1::new();
         let msg_hash_hex = &msg_hash.get_element().to_string();
